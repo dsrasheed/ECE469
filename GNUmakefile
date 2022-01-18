@@ -64,7 +64,7 @@ QEMU := $(shell if which qemu >/dev/null 2>&1; \
 endif
 
 # try to generate a unique GDB port
-GDBPORT	:= $(shell expr `id -u` % 5000 + 25000)
+GDBPORT	:= $(shell expr 471 % 5000 + 25000)
 
 CC	:= $(GCCPREFIX)gcc -pipe
 AS	:= $(GCCPREFIX)as
