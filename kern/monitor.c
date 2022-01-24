@@ -84,7 +84,22 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 int
 mon_show(int argc, char **argv, struct Trapframe *tf)
 {
-	cprintf("\x1b[0;31;41mHello\x1b[0m\n");	
+	cprintf("          \x1b[0;42m      \x1b[0m  \x1b[42m    \x1b[0m\n");
+	cprintf("        \x1b[42m                \x1b[0m\n");
+	cprintf("      \x1b[42m                  \x1b[0m\n");
+	cprintf("      \x1b[42m                    \x1b[0m\n");
+	cprintf("    \x1b[42m                        \x1b[0m\n");
+	cprintf("    \x1b[42m          \x1b[5;47m  \x1b[0;40m  \x1b[5;47m  \x1b[0;42m  \x1b[5;47m  \x1b[0;40m  \x1b[5;47m  \x1b[0m\n");
+	cprintf("  \x1b[42m                          \x1b[0m\n");
+	cprintf("  \x1b[42m                          \x1b[0m\n");
+	cprintf("\x1b[42m            \x1b[41m  \x1b[42m              \x1b[0m\n");
+	cprintf("\x1b[42m            \x1b[5;41m                \x1b[0m\n");
+	cprintf("\x1b[42m              \x1b[5;41m              \x1b[0m\n");
+	cprintf("\x1b[42m                          \x1b[0m\n");
+	cprintf("\x1b[42m                        \x1b[0m\n");
+	cprintf("\x1b[42m                        \x1b[0m  \x1b[42m  \x1b[0m\n");
+	cprintf("  \x1b[42m                        \x1b[0m  \x1b[42m    \x1b[0m\n");
+	cprintf("                      \x1b[47m  \x1b[42m        \x1b[0m\n");
 	return 0;
 }
 

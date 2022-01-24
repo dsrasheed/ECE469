@@ -128,6 +128,10 @@ lpt_putc(int c)
 static unsigned addr_6845;
 static uint16_t *crt_buf;
 static uint16_t crt_pos;
+static uint8_t cga_color;
+static uint8_t color2set;
+enum ANSI { WAIT_ESC, WAIT_BRACK, WAIT_CMD, ATTR_OFF, BLINK_ON, BOLD_ON, WAIT_FG, SET_FG, WAIT_BG, SET_BG, TERMINATE };
+enum ANSI ansi_state;
 
 static void
 cga_init(void)
@@ -147,6 +151,10 @@ cga_init(void)
 		addr_6845 = CGA_BASE;
 	}
 
+	// initialize text color
+	cga_color = 0x07;
+	ansi_state = WAIT_ESC;
+
 	/* Extract cursor location */
 	outb(addr_6845, 14);
 	pos = inb(addr_6845 + 1) << 8;
@@ -157,14 +165,102 @@ cga_init(void)
 	crt_pos = pos;
 }
 
+static inline int bgr2rgb(int bgr) {
+	return (bgr & 0x1) << 2 | (bgr & 0x2) | (bgr & 0x4) >> 2;
+}
 
+static void update_ansi(char c) {
+	enum ANSI nxt_state;
+
+	nxt_state = WAIT_ESC;
+	switch (ansi_state) {
+	case WAIT_ESC:
+		if (c == '\x1b') nxt_state = WAIT_BRACK;
+		break;
+	case WAIT_BRACK:
+		if (c == '[') nxt_state = WAIT_CMD;
+		break;
+	case WAIT_CMD:
+		switch (c) {
+		case '0':
+			nxt_state = ATTR_OFF;
+			break;
+		case '1':
+			nxt_state = BOLD_ON;
+			break;
+		case '5':
+			nxt_state = BLINK_ON;
+			break;
+		case '3':
+			nxt_state = WAIT_FG;
+			break;
+		case '4':
+			nxt_state = WAIT_BG;
+			break;
+		}
+		break;
+	case ATTR_OFF:
+		if (c == ';' || c == 'm') {
+			cga_color = 0x07;
+			goto wait_esc_or_cmd;
+		}
+		break;
+	case BOLD_ON:
+		if (c == ';' || c == 'm') {
+			cga_color |= 0x08;
+			goto wait_esc_or_cmd;
+		}
+		break;
+	case BLINK_ON:
+		if (c == ';' || c == 'm') {
+			cga_color |= 0x80;
+			goto wait_esc_or_cmd;
+		}
+		break;
+	case WAIT_FG:
+		if ('0' <= c && c <= '7') {
+			color2set = bgr2rgb(c - '0');
+			nxt_state = SET_FG;
+		}
+		break;
+	case WAIT_BG:
+		if ('0' <= c && c <= '7') {
+			color2set = bgr2rgb(c - '0');
+			nxt_state = SET_BG;
+		}
+		break;
+	case SET_FG:
+		if (c == ';' || c == 'm') {
+			cga_color = (cga_color & ~0x7) | color2set;
+			goto wait_esc_or_cmd;
+		}
+		break;
+	case SET_BG:
+		if (c == ';' || c == 'm') {
+			cga_color = (cga_color & ~0x70) | (color2set << 4);
+			wait_esc_or_cmd:
+				nxt_state = c == ';' ? WAIT_CMD : TERMINATE;
+		}
+		break;
+	case TERMINATE:
+		nxt_state = WAIT_ESC;
+	}
+	ansi_state = nxt_state;
+}
+
+static int should_display_ch(char c) {
+	return (ansi_state == WAIT_ESC) && (c != '\x1b');
+}
 
 static void
 cga_putc(int c)
 {
-	// if no attribute given, then use black on white
-	if (!(c & ~0xFF))
-		c |= 0x0700;
+	c &= 0xff;
+	update_ansi(c);
+	if (!should_display_ch(c))
+		return;
+
+	c |= cga_color << 8;
 
 	switch (c & 0xff) {
 	case '\b':
