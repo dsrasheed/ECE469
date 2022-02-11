@@ -1,0 +1,14 @@
+Excercise 3:
+Assuming that the following JOS kernel code is correct, what type should variable x have, uintptr_t or physaddr_t?
+uintptr_t
+
+Exercise 5:
+a) 
+b) If the page table or page directory entry for a page of virtual memory does not have the user permission bit set (PTE_U), then the MMU will throw an exception if an attempt is made to read or write to them when the processor is running in user mode. I have not set the user bit for the page table entries associated with virtual addresses:
+-[pages, ROUNDUP(npages * sizeof(struct PageInfo)) (writable page free list)
+-[KSTACKTOP-KSTKSIZE, KSTACKTOP] (Kernel stack)
+-[KERNBASE, 2^32] (Kernel code)
+So the MMU will fault if the processor is in user mode and tries to access the virtual addresses in these regions
+c) The virtual address space goes from [0,2**32), so the maximum amount of memory that could be supported is 2**32 (4GB).
+d) We would have (2**32 / 4096 = 1048576) pages, and since each PageInfo struct is 6 bytes, 1048576 * 6 = 6291456 bytes of overhead
+e) 
