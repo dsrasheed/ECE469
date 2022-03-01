@@ -11,6 +11,7 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
+#include <kern/env.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -27,7 +28,8 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display stack trace", mon_backtrace },
-	{ "show", "Show ASCII art", mon_show }
+	{ "show", "Show ASCII art", mon_show },
+	{ "si", "Single step instruction", mon_si }
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -104,6 +106,13 @@ mon_show(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+int mon_si(int argc, char **argv, struct Trapframe *tf) {
+	if (!curenv || !tf) return 0;
+
+	tf->tf_eflags |= FL_TF;
+	env_run(curenv);
+	return 0;
+}
 
 /***** Kernel monitor command interpreter *****/
 

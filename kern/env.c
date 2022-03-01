@@ -197,7 +197,7 @@ env_setup_vm(struct Env *e)
 		return -E_NO_MEM;*/
 	e->env_pgdir = page2kva(p);
 	p->pp_ref += 1;
-	
+
 	//memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
 
 	for (int i = PDX(UTOP); i < NPDENTRIES; i++) {
@@ -553,7 +553,5 @@ env_run(struct Env *e)
 	lcr3(PADDR(curenv->env_pgdir));
 
 	env_pop_tf(&curenv->env_tf);
-
-	//panic("env_run not yet implemented");
 }
 

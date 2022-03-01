@@ -200,6 +200,8 @@ trap_dispatch(struct Trapframe *tf)
 			return page_fault_handler(tf);
 		case T_BRKPT:
 			return monitor(tf);
+		case T_DEBUG:
+			return monitor(tf);
 		case T_SYSCALL:
 		{
 			tf->tf_regs.reg_eax = syscall(
