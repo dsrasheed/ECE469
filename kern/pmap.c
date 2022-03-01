@@ -95,7 +95,7 @@ boot_alloc(uint32_t n)
 	// the first virtual address that the linker did *not* assign
 	// to any kernel code or global variables.
 	if (!nextfree)
-		nextfree = ROUNDUP((char *) end, PGSIZE);
+		nextfree = ROUNDUP((char *) end + 1, PGSIZE);
 
 	// Allocate a chunk large enough to hold 'n' bytes, then update
 	// nextfree.  Make sure nextfree is kept aligned
@@ -129,7 +129,7 @@ void
 mem_init(void)
 {
 	uint32_t cr0;
-	size_t n;
+	size_t pages_size, envs_size;
 
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
@@ -158,13 +158,16 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-	n = npages * sizeof(struct PageInfo);
-	pages = boot_alloc(n);
-	memset(pages, 0, n);
+	pages_size = ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE);
+	pages = boot_alloc(pages_size);
+	memset(pages, 0, pages_size);
 
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
+	envs_size = NENV * sizeof(struct Env);
+	envs = boot_alloc(envs_size);
+	memset(envs, 0, envs_size);
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -188,8 +191,8 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), PTE_U);
-	boot_map_region(kern_pgdir, (uintptr_t) pages, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), PTE_W);
+	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(pages_size, PGSIZE), PADDR(pages), PTE_U);
+	//boot_map_region(kern_pgdir, (uintptr_t) pages, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), PTE_W);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map the 'envs' array read-only by the user at linear address UENVS
@@ -198,6 +201,8 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
+	boot_map_region(kern_pgdir, UENVS, ROUNDUP(envs_size, PGSIZE), PADDR(envs), PTE_U);
+	//boot_map_region(kern_pgdir, (uintptr_t) envs, PTSIZE, PADDR(envs), PTE_W);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -220,8 +225,8 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	//boot_map_region(pgdir, KERNBASE, 0xFFFFFFFF - KERNBASE, )
 	boot_map_region(kern_pgdir, KERNBASE, 268435456, 0, PTE_W);
+	//boot_map_region(kern_pgdir, KERNBASE, 0xFFFFFFFF - KERNBASE, 0, PTE_W);
 
 	check_kern_pgdir();
 
@@ -290,7 +295,7 @@ page_init(void)
 	mark_pages_inuse(0, 1);
 	// Memory-mapped I/O
 	mark_pages_inuse(IOPHYSMEM >> PGSHIFT, EXTPHYSMEM >> PGSHIFT);
-	// Kernel and page free list
+	// Kernel and page/env free list
 	mark_pages_inuse(EXTPHYSMEM >> PGSHIFT, ((unsigned int) (boot_alloc(0) - KERNBASE)) >> PGSHIFT);
 
 	// Construct free pages linked list
@@ -427,7 +432,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 
 	for (i = 0; i < size; i += PGSIZE) {
 		p_pte = (pte_t*) pgdir_walk(pgdir, (void*) (va + i), 1);
-		*p_pte = PTE_ADDR(pa + i) | PTE_P | perm;
+		if (p_pte) *p_pte = PTE_ADDR(pa + i) | PTE_P | perm;
 	}
 }
 
@@ -562,6 +567,25 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	uint8_t* lbound, *ubound;
+	pte_t* entry;
+
+	lbound = ROUNDDOWN((uint8_t *) va, PGSIZE);
+	ubound = ROUNDDOWN(((uint8_t *) va) + len, PGSIZE);
+
+	for (uint8_t* page_va = lbound; page_va <= ubound; page_va += PGSIZE) {
+		if (page_va == (uint8_t*) ULIM) {
+			user_mem_check_addr = ULIM;
+			return -E_FAULT;
+		}
+
+		entry = pgdir_walk(env->env_pgdir, (void*) page_va, 0);
+
+		if (entry == NULL || (*entry & perm) != perm ) {
+			user_mem_check_addr = (uintptr_t) (page_va == lbound ? va : page_va);
+			return -E_FAULT;
+		}
+	}
 
 	return 0;
 }

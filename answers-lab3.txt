@@ -1,0 +1,20 @@
+1. 
+The CPU does not push the interrupt number onto the stack. Thus, if we
+provided each entry in the interrupt table with the same handler, we would
+not be able to determine which type of interrupt was thrown.
+
+Additionally, the CPU pushes an error code for some interrupts, but not for others.
+This inconsistency prevents us from pointing a TrapFrame to the bottom of the stack
+since the fields vary. In our current implementation, we manually
+push a 0 in the interrupt handlers that do not have error codes.
+This keeps the structure of the stackframe consistent for every interrupt, 
+allowing us to simply attach a TrapFrame at esp without every time.
+
+2.
+According to the intel documentation, a general protection fault will be
+triggered when "executing the INT n instruction when the CPL is greater 
+that the DPL of the referenced interrupt". We marked interrupt 14 with a DPL
+of 0 in trap_init. The user mode program runs with a CPL of 3. Thus, the CPU 
+ignored the user mode processes' attempt to trigger a page fault and threw a 
+general protection fault instead.
+
