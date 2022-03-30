@@ -280,7 +280,14 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
+	uintptr_t kstacktop_i;
+	physaddr_t pa;
 
+	for (int i = 0; i < NCPU; i++) {
+		kstacktop_i = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
+		pa = (physaddr_t) PADDR(percpu_kstacks[i]);
+		boot_map_region(kern_pgdir, kstacktop_i - KSTKSIZE, KSTKSIZE, pa, PTE_W);
+	}
 }
 
 // --------------------------------------------------------------
@@ -332,6 +339,8 @@ page_init(void)
 	mark_pages_inuse(IOPHYSMEM >> PGSHIFT, EXTPHYSMEM >> PGSHIFT);
 	// Kernel and page/env free list
 	mark_pages_inuse(EXTPHYSMEM >> PGSHIFT, ((unsigned int) (boot_alloc(0) - KERNBASE)) >> PGSHIFT);
+	// mark multiprocessor bootstrap code as in use
+	mark_pages_inuse(MPENTRY_PADDR >> PGSHIFT, (MPENTRY_PADDR >> PGSHIFT) + 1);
 
 	// Construct free pages linked list
 	page_free_list = NULL;
@@ -610,7 +619,21 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	physaddr_t lbound, ubound;
+	uintptr_t startbase;
+
+	lbound = ROUNDDOWN(pa, PGSIZE);
+	ubound = ROUNDUP(pa + size, PGSIZE);
+	
+	size = ubound - lbound;
+	if (base + size > MMIOLIM)
+		panic("mmio_map_region: Not enough IO memory");
+
+	boot_map_region(kern_pgdir, base, size, lbound, PTE_W | PTE_PCD | PTE_PWT);
+
+	startbase = base;
+	base += size;
+	return (void*) startbase;
 }
 
 static uintptr_t user_mem_check_addr;
@@ -641,7 +664,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 	pte_t* entry;
 
 	lbound = ROUNDDOWN((uint8_t *) va, PGSIZE);
-	ubound = ROUNDDOWN(((uint8_t *) va) + len, PGSIZE);
+	ubound = ROUNDDOWN(((uint8_t *) va) + len - 1, PGSIZE);
 
 	for (uint8_t* page_va = lbound; page_va <= ubound; page_va += PGSIZE) {
 		if (page_va == (uint8_t*) ULIM) {

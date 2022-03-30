@@ -1,6 +1,7 @@
 // Basic string routines.  Not hardware optimized, but not shabby.
 
 #include <inc/string.h>
+#include <inc/lib.h>
 
 // Using assembly for memset/memmove
 // makes some difference on real hardware,
@@ -195,11 +196,13 @@ memmove(void *dst, const void *src, size_t n)
 	if (s < d && s + n > d) {
 		s += n;
 		d += n;
-		while (n-- > 0)
+		while (n-- > 0) {
 			*--d = *--s;
+		}
 	} else
-		while (n-- > 0)
+		while (n-- > 0) {
 			*d++ = *s++;
+		}
 
 	return dst;
 }

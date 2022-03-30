@@ -1,0 +1,43 @@
+1. 
+MPBOOTPHYS is used to calculate the physical address from the 
+virtual address the linker will insert (everything is linked 
+1 MB above KERNBASE). It's implemented by finding the offset 
+of a given virtual address from mpentry_start 
+(s - mpentry_start) and adding it to the base physical address 
+MPENTRY_PADDR. It's necessary in mpentry.S but not in boot.S 
+because boot.S is already linked at the address it is loaded to. 
+If we omit MPBOOTPHYS, mpentry.S will try to access memory addresses 
+that are unreachable in real mode. Or more precisely, it will take 
+the last 20 bits of the virtual address as the real address and try 
+to access memory that the kernel may be using. 
+
+2.  
+Consider: 
+-CPU0 currently has the kernel. 
+-The user environment running on CPU1 triggers a page fault.
+-CPU1 pushes its trapframe onto the shared stack. 
+-Bad! CPU0 already had a trapframe and other data there
+
+A corrupted stack is bad. A specific example is if CPU0 was 
+currently in a kernel function and trying to return. ret relies on 
+the return address being at the top of the stack. But the return 
+address would now be whatever value is at the top of CPU1's trapframe.
+
+3.1 
+Each user environment's page directory has the content's of the kernel'S 
+page directory above PDX(UTOP) copied into it. The env pointer is 
+a virtual address above UTOP, at a location somewhere above KERNBASE + 1MB. 
+Since that mapping still exists in the user environment page directory, 
+and the processor still runs in CPL=0 after lcr3(), its physical memory 
+can be accessed.
+
+3.2 
+This must happen because after the kernel has handled the trap, the 
+user environment will resume execution. However, the kernel dirtied 
+most if not all of the CPU's registers in order to do its job, so 
+the user environment will not resume with the correct state before 
+the trap. This is why one of the first thing the kernel does in the 
+common trap handler (_alltraps) is to push the current state of the 
+registers onto the stack, and then store them into environment's
+data block in memory. When the kernel decides to resume the environment,
+it can pop off the state stored in the environment's data block.

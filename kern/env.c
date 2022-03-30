@@ -195,20 +195,12 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
-
-	/*if (page_insert(kern_pgdir, p, page2kva(p), PTE_W) < 0)
-		return -E_NO_MEM;*/
 	e->env_pgdir = page2kva(p);
 	p->pp_ref += 1;
-
-	//memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
 
 	for (int i = PDX(UTOP); i < NPDENTRIES; i++) {
 		e->env_pgdir[i] = kern_pgdir[i];
 	}
-
-	/*e->env_pgdir[PDX(UENVS)] = PADDR(envs) | PTE_P | PTE_U;
-	e->env_pgdir[PDX(UPAGES)] = PADDR(pages) | PTE_P | PTE_U;*/
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -274,6 +266,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 
 	// Enable interrupts while in user mode.
 	// LAB 4: Your code here.
+	e->env_tf.tf_eflags |= FL_IF;
 
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
@@ -384,6 +377,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	struct Elf* elf_header;
 	struct Proghdr* ph;
 	void *va, *bss, *prog_seg;
+	size_t bss_sz;
 	struct PageInfo* stack_pp;
 	int error;
 	
@@ -395,13 +389,17 @@ load_icode(struct Env *e, uint8_t *binary)
 	for (unsigned int i = 0; i < elf_header->e_phnum; i++) {
 		if (ph[i].p_type != ELF_PROG_LOAD) continue;
 
+		bss_sz = ph[i].p_memsz - ph[i].p_filesz;
+		if (bss_sz < 0)
+			panic("load_icode: memsz cannot be less than filesz");
+
 		va = (void*) (ph[i].p_va);
 		bss = (void*) (ph[i].p_va + ph[i].p_filesz);
 		prog_seg = (void*) (binary + ph[i].p_offset);
 		
 		region_alloc(e, va, ph[i].p_memsz);
 		memcpy(va, prog_seg, ph[i].p_filesz);
-		memset(bss, 0, ph[i].p_memsz - ph[i].p_filesz);
+		memset(bss, 0, bss_sz);
 	}
 	e->env_tf.tf_eip = elf_header->e_entry;
 
@@ -578,6 +576,7 @@ env_run(struct Env *e)
 	curenv->env_runs += 1;
 	lcr3(PADDR(curenv->env_pgdir));
 
+	unlock_kernel();
 	env_pop_tf(&curenv->env_tf);
 }
 

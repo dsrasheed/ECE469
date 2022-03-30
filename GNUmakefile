@@ -64,7 +64,7 @@ QEMU := $(shell if which qemu >/dev/null 2>&1; \
 endif
 
 # try to generate a unique GDB port
-GDBPORT	:= $(shell expr 471 % 5000 + 25000)
+GDBPORT	:= $(shell expr 473 % 5000 + 25000)
 
 CC	:= $(GCCPREFIX)gcc -pipe
 GDB	:= $(GCCPREFIX)gdb
@@ -295,13 +295,13 @@ run-%-nox-gdb: prep-% pre-qemu
 	$(QEMU) -nographic $(QEMUOPTS) -S
 
 run-%-gdb: prep-% pre-qemu
-	$(QEMU) $(QEMUOPTS) -S
+	$(QEMU) -nographic $(QEMUOPTS) -S
 
 run-%-nox: prep-% pre-qemu
 	$(QEMU) -nographic $(QEMUOPTS)
 
 run-%: prep-% pre-qemu
-	$(QEMU) $(QEMUOPTS)
+	$(QEMU) -nographic $(QEMUOPTS)
 
 # This magic automatically generates makefile dependencies
 # for header files included from C source files we compile,
